@@ -26,7 +26,7 @@
             }
         },
         "eth": {
-            "name": "Web3.Eth"
+            "name": "Web3.Eth",
             "methods": {
                 "getBlock": {
                     "call": true,
