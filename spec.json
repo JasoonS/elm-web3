@@ -8,8 +8,8 @@
             "BlockInput": {
                 "type": "union",
                 "ctors": [
-                    { "ctor": "BlockInputHash", "0": "Hex32" },
-                    { "ctor": "BlockInputNumber", "0": "Int" }
+                    { "ctor": "BlockInputHash", "members": ["Hex32"] },
+                    { "ctor": "BlockInputNumber", "members": ["Int"] }
                 ]
             }
         }
