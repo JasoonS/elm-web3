@@ -1,0 +1,42 @@
+{
+    "shapes": {
+        "input": {
+            "Hex32": {
+                "type": "alias",
+                "target": "String"
+            },
+            "BlockInput": {
+                "type": "union",
+                "ctors": [
+                    { "ctor": "BlockInputHash", "0": "Hex32" },
+                    { "ctor": "BlockInputNumber", "0": "Int" }
+                ]
+            }
+        }
+    },
+    "modules": {
+        "version": {
+            "name": "Web3.Version",
+            "methods": {
+                "api": {
+                    "call": false,
+                    "input": [],
+                    "output": "String"
+                }
+            }
+        },
+        "eth": {
+            "name": "Web3.Eth"
+            "methods": {
+                "getBlock": {
+                    "call": true,
+                    "input": [
+                        "BlockInput",
+                        "Bool"
+                    ],
+                    "output": "Block"
+                }
+            }
+        }
+    }
+}
