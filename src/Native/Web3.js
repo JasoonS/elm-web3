@@ -331,6 +331,15 @@ var _cmditch$elm_web3$Native_Web3 = function() {
         {
             return r.decoder( JSON.stringify(r.response) )
         }
+        else if (r.response === undefined)
+        {
+            console.log("Web3 response was undefined: ", r);
+            return { ctor: "Err", _0: config.error.undefinedResposnse }
+        }
+        else if (r.wasGetEvent)
+        {
+            return r.decoder( JSON.stringify(r.response) )
+        }
         else if (r.decoder !== undefined)
         {
             console.log("Web3 was async w/ decoder: ", r);
