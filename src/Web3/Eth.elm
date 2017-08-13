@@ -79,6 +79,17 @@ watchIncomingTxs name =
 
 
 
+-- Tricky one to implement, maybe ports only?
+-- isSyncing : Task Error (Maybe SyncStatus)
+-- isSyncing =
+-- https://github.com/ethereum/wiki/wiki/JavaScript-API#web3ethissyncing
+
+watchIncomingTxs : String -> Cmd msg
+watchIncomingTxs name =
+    Web3.EM.watchFilter name "pending"
+
+
+
 {-
    Implement within Effect Manager.
    NOTE Doesn't seem to work within MetaMask!
