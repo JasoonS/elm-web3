@@ -16,6 +16,7 @@ module Web3
         , setOrGet
         , getEvent
         , retry
+        , fromWei
         , toWei
         )
 
@@ -34,7 +35,7 @@ documentation on Version](https://github.com/ethereum/wiki/wiki/JavaScript-API#w
 
 -}
 
-import BigInt exposing (BigInt(..), mul, fromInt, fromString, divmod)
+import BigInt exposing (BigInt, mul, fromInt, fromString, divmod)
 import Time
 import Process
 import Task exposing (Task)
@@ -204,6 +205,26 @@ toChecksumAddress (Address address) =
 toWei : EthDenomination -> BigInt -> BigInt
 toWei unit amount =
     mul amount (getValueOfUnit unit)
+
+
+fromWei : EthDenomination -> BigInt -> Float
+fromWei unit amount =
+    let
+        unitDegree =
+            getValueOfUnit unit
+
+        bigIntToFloat value =
+            toFloat <| Result.withDefault 0 <| String.toInt <| BigInt.toString value
+
+        ( characteristic, remainder ) =
+            divmod amount unitDegree
+                |> Maybe.map (\( a, b ) -> ( bigIntToFloat a, bigIntToFloat b ))
+                |> Maybe.withDefault ( 0, 0 )
+
+        mantissa =
+            remainder / bigIntToFloat unitDegree
+    in
+        characteristic + mantissa
 
 
 getValueOfUnit : EthDenomination -> BigInt
