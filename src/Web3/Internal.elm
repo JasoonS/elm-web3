@@ -1,10 +1,11 @@
 module Web3.Internal
     exposing
         ( Request
-        , GetDataRequest
         , EventRequest
-        , contractFuncHelper
         , expectStringResponse
+        , constructOptions
+        , decapitalize
+        , unfoldr
         )
 
 import Json.Encode as Encode exposing (Value)
@@ -12,17 +13,11 @@ import Web3.Types exposing (..)
 
 
 type alias Request a =
-    { func : String
-    , args : Encode.Value
+    { method : String
+    , params : Encode.Value
     , expect : Expect a
     , callType : CallType
-    }
-
-
-type alias GetDataRequest =
-    { abi : Abi
-    , data : Bytes
-    , constructorParams : Value
+    , applyScope : Maybe String
     }
 
 
@@ -40,11 +35,26 @@ expectStringResponse =
     Native.Web3.expectStringResponse
 
 
-contractFuncHelper : Abi -> Address -> String -> String
-contractFuncHelper (Abi abi) (Address address) func =
-    "eth.contract("
-        ++ abi
-        ++ ").at('"
-        ++ address
-        ++ "')."
-        ++ func
+decapitalize : String -> String
+decapitalize string =
+    (String.left 1 string |> String.toLower) ++ (String.dropLeft 1 string)
+
+
+unfoldr : (b -> Maybe ( a, b )) -> b -> List a
+unfoldr f seed =
+    case f seed of
+        Nothing ->
+            []
+
+        Just ( a, b ) ->
+            a :: unfoldr f b
+
+
+constructOptions : List ( String, Maybe String ) -> String
+constructOptions options =
+    options
+        |> List.filter (\( k, v ) -> v /= Nothing)
+        |> List.map (\( k, v ) -> ( k, Maybe.withDefault "" v ))
+        |> List.map (\( k, v ) -> k ++ ": " ++ v ++ ",")
+        |> String.join ""
+        |> String.dropRight 1

@@ -6,28 +6,48 @@ module Web3.Encoders
         , encodeBigIntList
         , encodeListBigIntList
         , encodeIntList
+        , encodeKeystore
         , getBlockIdValue
         , addressMaybeMap
         , listOfMaybesToVal
+        , encodeBytes
+          -- , encodeCustomTxParams
         )
 
 import Web3.Types exposing (..)
-import Web3.Decoders exposing (bytesToString, addressToString, hexToString)
+import Web3.Decoders exposing (addressToString, hexToString)
 import BigInt exposing (BigInt)
 import Json.Encode as Encode exposing (Value, string, int, null, list, object)
 
 
 encodeTxParams : TxParams -> Value
-encodeTxParams { from, to, value, gas, data, gasPrice, nonce } =
+encodeTxParams { from, to, value, gas, data, gasPrice, nonce, chainId } =
     listOfMaybesToVal
         [ ( "from", Maybe.map string (addressMaybeMap from) )
         , ( "to", Maybe.map string (addressMaybeMap to) )
         , ( "value", Maybe.map (BigInt.toString >> string) value )
-        , ( "gas", Maybe.map int gas )
-        , ( "data", Maybe.map string (bytesMaybeMap data) )
+        , ( "gas", Maybe.map int (Just gas) )
+        , ( "data", Maybe.map string (hexMaybeMap data) )
         , ( "gasPrice", Maybe.map int gasPrice )
         , ( "nonce", Maybe.map int nonce )
+        , ( "chainId", Maybe.map int chainId )
         ]
+
+
+
+-- encodeCustomTxParams : List ( String, Maybe Value ) -> TxParams -> Value
+-- encodeCustomTxParams customFields { from, to, value, gas, data, gasPrice, nonce, chainId } =
+--     listOfMaybesToVal <|
+--         [ ( "from", Maybe.map string (addressMaybeMap from) )
+--         , ( "to", Maybe.map string (addressMaybeMap to) )
+--         , ( "value", Maybe.map (BigInt.toString >> string) value )
+--         , ( "gas", Maybe.map int (Just gas) )
+--         , ( "data", Maybe.map string (hexMaybeMap data) )
+--         , ( "gasPrice", Maybe.map int gasPrice )
+--         , ( "nonce", Maybe.map int nonce )
+--         , ( "chainId", Maybe.map int chainId )
+--         ]
+--             ++ customFields
 
 
 encodeFilterParams : FilterParams -> Value
@@ -40,23 +60,23 @@ encodeFilterParams { fromBlock, toBlock, address, topics } =
         ]
 
 
-getBlockIdValue : BlockId -> Encode.Value
+getBlockIdValue : BlockId -> Value
 getBlockIdValue blockId =
     case blockId of
         BlockNum num ->
-            Encode.int num
+            int num
 
         BlockHash hash ->
-            Encode.string hash
+            string hash
 
         Earliest ->
-            Encode.string "earliest"
+            string "earliest"
 
         Latest ->
-            Encode.string "latest"
+            string "latest"
 
         Pending ->
-            Encode.string "pending"
+            string "pending"
 
 
 maybeStringListEncoder : List (Maybe String) -> Value
@@ -65,40 +85,40 @@ maybeStringListEncoder mList =
         toVal val =
             case val of
                 Just str ->
-                    Encode.string str
+                    string str
 
                 Nothing ->
-                    Encode.null
+                    null
     in
-        List.map toVal mList |> Encode.list
+        List.map toVal mList |> list
 
 
 encodeAddressList : List Address -> Value
 encodeAddressList =
-    List.map (addressToString >> Encode.string)
-        >> Encode.list
+    List.map (addressToString >> string)
+        >> list
 
 
 encodeBigIntList : List BigInt -> Value
 encodeBigIntList =
-    List.map (BigInt.toString >> Encode.string)
-        >> Encode.list
+    List.map (BigInt.toString >> string)
+        >> list
 
 
 encodeListBigIntList : List (List BigInt) -> Value
 encodeListBigIntList =
     List.map encodeBigIntList
-        >> Encode.list
+        >> list
 
 
 encodeIntList : List Int -> Value
 encodeIntList =
-    List.map Encode.int >> Encode.list
+    List.map int >> list
 
 
-bytesMaybeMap : Maybe Bytes -> Maybe String
-bytesMaybeMap =
-    Maybe.map bytesToString
+hexMaybeMap : Maybe Hex -> Maybe String
+hexMaybeMap =
+    Maybe.map hexToString
 
 
 addressMaybeMap : Maybe Address -> Maybe String
@@ -112,8 +132,43 @@ intMaybeMap =
 
 
 listOfMaybesToVal : List ( String, Maybe Value ) -> Value
-listOfMaybesToVal object =
-    object
+listOfMaybesToVal keyValueList =
+    keyValueList
         |> List.filter (\( k, v ) -> v /= Nothing)
-        |> List.map (\( k, v ) -> ( k, Maybe.withDefault Encode.null v ))
-        |> Encode.object
+        |> List.map (\( k, v ) -> ( k, Maybe.withDefault null v ))
+        |> object
+
+
+encodeBytes : Bytes -> Value
+encodeBytes (Bytes byteArray) =
+    list <| List.map int byteArray
+
+
+encodeKeystore : Keystore -> Value
+encodeKeystore keystore =
+    let
+        encodeCrypto crypto =
+            object
+                [ ( "ciphertext", string crypto.ciphertext )
+                , ( "cipherparams", object [ ( "iv", string crypto.cipherparams.iv ) ] )
+                , ( "cipher", string crypto.cipher )
+                , ( "kdf", string crypto.kdf )
+                , ( "kdfparams", encodeKdfParams crypto.kdfparams )
+                , ( "mac", string crypto.mac )
+                ]
+
+        encodeKdfParams params =
+            object
+                [ ( "dklen", int params.dklen )
+                , ( "salt", string params.salt )
+                , ( "n", int params.n )
+                , ( "r", int params.r )
+                , ( "p", int params.p )
+                ]
+    in
+        object
+            [ ( "version", int keystore.version )
+            , ( "id", string keystore.id )
+            , ( "address", string keystore.address )
+            , ( "crypto", encodeCrypto keystore.crypto )
+            ]

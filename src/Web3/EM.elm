@@ -12,7 +12,7 @@ effect module Web3.EM
 import Dict
 import Task exposing (Task)
 import Json.Encode as Encode
-import Web3.Internal exposing (EventRequest, contractFuncHelper)
+import Web3.Internal exposing (EventRequest)
 
 
 -- SUBSCRIPTIONS
@@ -23,8 +23,8 @@ type MySub msg
 
 
 subMap : (a -> b) -> MySub a -> MySub b
-subMap func (EventSentry name toMsg) =
-    EventSentry name (toMsg >> func)
+subMap method (EventSentry name toMsg) =
+    EventSentry name (toMsg >> method)
 
 
 eventSentry : String -> (String -> msg) -> Sub msg
@@ -195,14 +195,16 @@ sendMessagesHelp router cmds eventDict =
 initWatch : Platform.Router msg Msg -> String -> EventRequest -> Task Never Web3Event
 initWatch router name { abi, address, argsFilter, filterParams, eventName } =
     let
-        func =
-            contractFuncHelper abi address eventName
+        method =
+            ""
 
-        args =
+        -- NOTE Hack so it can compile, till this module is redesigned
+        -- contractFuncHelper abi address eventName
+        params =
             Encode.list [ argsFilter, filterParams ]
     in
         Native.Web3.watchEvent
-            { func = func, args = args, isContractEvent = Encode.bool True }
+            { method = method, params = params, isContractEvent = Encode.bool True }
             -- This is the callback which talks to Event.onSelfMsg, in Web3.js it's within watch() as onMessage(stringifiedWeb3Log)
             (\log -> Platform.sendToSelf router (RecieveLog name log))
 
@@ -210,11 +212,11 @@ initWatch router name { abi, address, argsFilter, filterParams, eventName } =
 initFilter : Platform.Router msg Msg -> String -> String -> Task Never Web3Event
 initFilter router name arg =
     let
-        func =
+        method =
             "eth.filter('" ++ arg ++ "')"
     in
         Native.Web3.watchEvent
-            { func = func, isContractEvent = Encode.bool False }
+            { method = method, isContractEvent = Encode.bool False }
             -- This is the callback which talks to Event.onSelfMsg, in Web3.js it's within watch() as onMessage(stringifiedWeb3Log)
             (\log -> Platform.sendToSelf router (RecieveLog name log))
 

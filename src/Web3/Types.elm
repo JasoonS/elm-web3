@@ -10,8 +10,6 @@ import BigInt exposing (BigInt)
 
 type Error
     = Error String
-    | BadPayload String
-    | NoWallet
 
 
 
@@ -29,19 +27,19 @@ type TxId
 
 
 type Bytes
-    = Bytes String
+    = Bytes (List Int)
 
 
 type Hex
     = Hex String
 
 
-type Keccak256
-    = Keccak256 String
-
-
 type Abi
     = Abi String
+
+
+type Sha3
+    = Sha3 String
 
 
 
@@ -106,12 +104,12 @@ type alias TxObj =
     , gas : Int
     , gasPrice : BigInt
     , hash : TxId
-    , input : Bytes
+    , input : Hex
     , networkId : Maybe Int
     , nonce : Int
     , publicKey : Hex
     , r : Hex
-    , raw : Bytes
+    , raw : Hex
     , s : Hex
     , standardV : Hex
     , to : Maybe Address
@@ -138,10 +136,30 @@ type alias TxParams =
     { from : Maybe Address
     , to : Maybe Address
     , value : Maybe BigInt
-    , gas : Maybe Int
-    , data : Maybe Bytes
+    , gas : Int
+    , data : Maybe Hex
     , gasPrice : Maybe Int
+    , chainId : Maybe Int
     , nonce : Maybe Int
+    }
+
+
+type alias SignedTx =
+    { messageHash : Sha3
+    , r : Hex
+    , s : Hex
+    , v : Hex
+    , rawTransaction : Hex
+    }
+
+
+type alias SignedMsg =
+    { message : Maybe String
+    , messageHash : Sha3
+    , r : Hex
+    , s : Hex
+    , v : Hex
+    , signature : Hex
     }
 
 
@@ -197,6 +215,46 @@ type alias Log =
 
 
 {-
+   WALLET / ACCOUNTS
+-}
+
+
+type PrivateKey
+    = PrivateKey String
+
+
+type alias Account =
+    { address : Address
+    , privateKey : PrivateKey
+    }
+
+
+type alias Keystore =
+    { version : Int
+    , id : String
+    , address : String
+    , crypto : Crypto
+    }
+
+
+type alias Crypto =
+    { ciphertext : String
+    , cipherparams : { iv : String }
+    , cipher : String
+    , kdf : String
+    , kdfparams :
+        { dklen : Int
+        , salt : String
+        , n : Int
+        , r : Int
+        , p : Int
+        }
+    , mac : String
+    }
+
+
+
+{-
    NODE
 -}
 
@@ -206,6 +264,14 @@ type alias SyncStatus =
     , currentBlock : Int
     , highestBlock : Int
     }
+
+
+type Network
+    = MainNet
+    | Morden
+    | Ropsten
+    | Kovan
+    | Private
 
 
 
@@ -221,5 +287,34 @@ type Expect a
 type CallType
     = Sync
     | Async
-    | Setter
     | Getter
+    | CustomSync String
+
+
+{-| Available ethereum denominations.
+-}
+type EthUnit
+    = Wei
+    | Kwei
+    | Ada
+    | Femtoether
+    | Mwei
+    | Babbage
+    | Picoether
+    | Gwei
+    | Shannon
+    | Nanoether
+    | Nano
+    | Szabo
+    | Microether
+    | Micro
+    | Finney
+    | Milliether
+    | Milli
+    | Ether
+    | Kether
+    | Grand
+    | Einstein
+    | Mether
+    | Gether
+    | Tether

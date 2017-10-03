@@ -7,30 +7,37 @@ module Web3.Decoders
         , txReceiptDecoder
         , logDecoder
         , addressDecoder
-        , keccakDecoder
         , txIdDecoder
         , bytesDecoder
         , hexDecoder
+        , sha3Decoder
+        , keystoreDecoder
+        , privateKeyDecoder
+        , accountDecoder
+        , signedTxDecoder
+        , signedMsgDecoder
         , blockNumDecoder
+        , networkTypeDecoder
+        , bigIntDecoder
         , toAsciiDecoder
         , syncStatusDecoder
         , contractInfoDecoder
         , eventLogDecoder
-        , bytesToString
         , hexToString
         , addressToString
         , txIdToString
+        , sha3ToString
+        , privateKeyToString
         , expectInt
         , expectString
         , expectBool
         , expectJson
         , expectBigInt
-        , bigIntDecoder
         )
 
 import BigInt exposing (BigInt)
-import Json.Decode as Decode exposing (int, list, nullable, string, bool, Decoder)
-import Json.Decode.Pipeline exposing (decode, required, optional)
+import Json.Decode as Decode exposing (int, list, nullable, string, bool, maybe, field, Decoder)
+import Json.Decode.Pipeline exposing (decode, required, optional, custom)
 import Web3.Types exposing (..)
 import Web3.Internal exposing (expectStringResponse)
 
@@ -77,19 +84,19 @@ txObjDecoder =
     decode TxObj
         |> required "blockHash" blockHashDecoder
         |> required "blockNumber" int
-        |> required "creates" (nullable addressDecoder)
+        |> custom (maybe (field "creates" addressDecoder))
         |> required "from" addressDecoder
         |> required "gas" int
         |> required "gasPrice" bigIntDecoder
         |> required "hash" txIdDecoder
-        |> required "input" bytesDecoder
-        |> required "networkId" (nullable int)
+        |> required "input" hexDecoder
+        |> custom (maybe (field "networkId" int))
         |> required "nonce" int
-        |> required "publicKey" hexDecoder
+        |> optional "publicKey" hexDecoder (Hex "0x0")
         |> required "r" hexDecoder
-        |> required "raw" bytesDecoder
+        |> optional "raw" hexDecoder (Hex "0x0")
         |> required "s" hexDecoder
-        |> required "standardV" hexDecoder
+        |> optional "standardV" hexDecoder (Hex "0x0")
         |> required "to" (nullable addressDecoder)
         |> optional "logs" (list logDecoder) []
         |> required "transactionIndex" int
@@ -138,29 +145,99 @@ eventLogDecoder argsDecoder =
         |> required "transactionIndex" int
 
 
+accountDecoder : Decoder Account
+accountDecoder =
+    decode Account
+        |> required "address" addressDecoder
+        |> required "privateKey" privateKeyDecoder
+
+
+signedTxDecoder : Decoder SignedTx
+signedTxDecoder =
+    decode SignedTx
+        |> required "messageHash" sha3Decoder
+        |> required "r" hexDecoder
+        |> required "s" hexDecoder
+        |> required "v" hexDecoder
+        |> required "rawTransaction" hexDecoder
+
+
+signedMsgDecoder : Decoder SignedMsg
+signedMsgDecoder =
+    decode SignedMsg
+        |> custom (maybe (field "message" string))
+        |> required "messageHash" sha3Decoder
+        |> required "r" hexDecoder
+        |> required "s" hexDecoder
+        |> required "v" hexDecoder
+        |> required "signature" hexDecoder
+
+
+keystoreDecoder : Decoder Keystore
+keystoreDecoder =
+    decode Keystore
+        |> required "version" int
+        |> required "id" string
+        |> required "address" string
+        |> required "crypto" cryptoDecoder
+
+
+cryptoDecoder : Decoder Crypto
+cryptoDecoder =
+    let
+        cipherparamsDecoder =
+            decode (\iv -> { iv = iv }) |> required "iv" string
+
+        kdfparamsDecoder =
+            decode (\dklen salt n r p -> { dklen = dklen, salt = salt, n = n, r = r, p = p })
+                |> required "dklen" int
+                |> required "salt" string
+                |> required "n" int
+                |> required "r" int
+                |> required "p" int
+    in
+        decode Crypto
+            |> required "ciphertext" string
+            |> required "cipherparams" cipherparamsDecoder
+            |> required "cipher" string
+            |> required "kdf" string
+            |> required "kdfparams" kdfparamsDecoder
+            |> required "mac" string
+
+
 addressDecoder : Decoder Address
 addressDecoder =
-    specialTypeDecoder Address
-
-
-keccakDecoder : Decoder Keccak256
-keccakDecoder =
-    specialTypeDecoder Keccak256
+    stringyTypeDecoder Address
 
 
 txIdDecoder : Decoder TxId
 txIdDecoder =
-    specialTypeDecoder TxId
-
-
-bytesDecoder : Decoder Bytes
-bytesDecoder =
-    specialTypeDecoder Bytes
+    stringyTypeDecoder TxId
 
 
 hexDecoder : Decoder Hex
 hexDecoder =
-    specialTypeDecoder Hex
+    stringyTypeDecoder Hex
+
+
+sha3Decoder : Decoder Sha3
+sha3Decoder =
+    stringyTypeDecoder Sha3
+
+
+privateKeyDecoder : Decoder PrivateKey
+privateKeyDecoder =
+    stringyTypeDecoder PrivateKey
+
+
+stringyTypeDecoder : (String -> a) -> Decoder a
+stringyTypeDecoder wrapper =
+    string |> Decode.andThen (wrapper >> Decode.succeed)
+
+
+bytesDecoder : Decoder Bytes
+bytesDecoder =
+    list int |> Decode.andThen (Bytes >> Decode.succeed)
 
 
 blockNumDecoder : Decoder BlockId
@@ -168,9 +245,49 @@ blockNumDecoder =
     int |> Decode.andThen (BlockNum >> Decode.succeed)
 
 
+networkTypeDecoder : Decoder Network
+networkTypeDecoder =
+    let
+        toNetworkType stringyNetwork =
+            case stringyNetwork of
+                "main" ->
+                    Decode.succeed MainNet
+
+                "morden" ->
+                    Decode.succeed Morden
+
+                "ropsten" ->
+                    Decode.succeed Ropsten
+
+                "kovan" ->
+                    Decode.succeed Kovan
+
+                "private" ->
+                    Decode.succeed Private
+
+                _ ->
+                    Decode.succeed Private
+    in
+        string |> Decode.andThen toNetworkType
+
+
 blockHashDecoder : Decoder BlockId
 blockHashDecoder =
     string |> Decode.andThen (BlockHash >> Decode.succeed)
+
+
+bigIntDecoder : Decoder BigInt
+bigIntDecoder =
+    let
+        convert stringyBigInt =
+            case stringyBigInt |> BigInt.fromString of
+                Just bigint ->
+                    Decode.succeed bigint
+
+                Nothing ->
+                    Decode.fail "Error decoding BigInt"
+    in
+        string |> Decode.andThen convert
 
 
 toAsciiDecoder : Decoder String
@@ -182,11 +299,6 @@ toAsciiDecoder =
                 >> Decode.succeed
     in
         string |> Decode.andThen removeNulls
-
-
-specialTypeDecoder : (String -> a) -> Decoder a
-specialTypeDecoder wrapper =
-    string |> Decode.andThen (wrapper >> Decode.succeed)
 
 
 contractInfoDecoder : Decoder ContractInfo
@@ -214,14 +326,19 @@ txIdToString (TxId txId) =
     txId
 
 
-bytesToString : Bytes -> String
-bytesToString (Bytes bytes) =
-    bytes
-
-
 hexToString : Hex -> String
 hexToString (Hex hex) =
     hex
+
+
+sha3ToString : Sha3 -> String
+sha3ToString (Sha3 sha3) =
+    sha3
+
+
+privateKeyToString : PrivateKey -> String
+privateKeyToString (PrivateKey privateKey) =
+    privateKey
 
 
 expectInt : Expect Int
@@ -247,17 +364,3 @@ expectJson decoder =
 expectBigInt : Expect BigInt
 expectBigInt =
     expectStringResponse (\r -> Decode.decodeString bigIntDecoder r)
-
-
-bigIntDecoder : Decoder BigInt
-bigIntDecoder =
-    let
-        convert stringyBigInt =
-            case stringyBigInt |> BigInt.fromString of
-                Just bigint ->
-                    Decode.succeed bigint
-
-                Nothing ->
-                    Decode.fail "Error decoding BigInt"
-    in
-        string |> Decode.andThen convert
